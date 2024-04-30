@@ -11,7 +11,6 @@ class User(Model):
     # username = fields.CharField(max_length=128, unique=True)
     email = fields.CharField(max_length=200, null=False, unique=True)
     password_hash = fields.CharField(max_length=128, null=False)
-    job = fields.CharField(max_length=128, null=True)
     phone = fields.CharField(max_length=20, null=True)
     role = fields.CharField(max_length=64, null=False)
     # we can use this as a flag for email verification or admin enable verification

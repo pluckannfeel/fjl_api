@@ -16,6 +16,7 @@ def initialize_db(app):
         db_url=db_uri,
         modules={
             'models': [
+                'app.models.user',
                 'app.models.organization',
                 'app.models.applicant',
                 'app.models.interviewee',

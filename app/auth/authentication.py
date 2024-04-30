@@ -45,7 +45,25 @@ async def get_user_credentials(token: str):
     except:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
+            detail="invalid_credentials",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    return user
+
+
+async def verify_token_email(token: str):
+    try:
+        payload = jwt.decode(
+            token, secret_key, algorithms="HS256")
+        # print("UUID: " + json.loads(payload.get("id")))
+        user_id = json.loads(payload.get("id"))
+        user = await User.get(id=user_id)
+        # print(f"user: {user}")
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token.",
             headers={"WWW-Authenticate": "Bearer"}
         )
 
@@ -162,10 +180,9 @@ async def token_generator(email: str, password: str) -> str:
     # print(user)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
-            # headers={"WWW-Authenticate": "Basic"},
-            headers={"WWW-Authenticate": "Bearer"}
+            status_code=401,
+            detail="invalid_credentials",
+            headers={'WWW-Authenticate': 'Bearer'}
         )
 
     token_data = {

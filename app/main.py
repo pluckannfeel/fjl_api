@@ -9,6 +9,7 @@ from app.db.init import initialize_db
 
 from mangum import Mangum
 
+from app.routers.users import router as userRouter
 from app.routers.applicant import router as applicantRouter
 from app.routers.interviewees import router as intervieweeRouter
 
@@ -43,6 +44,7 @@ app.add_middleware(
 )
 
 # routers
+app.include_router(userRouter)
 app.include_router(applicantRouter)
 app.include_router(intervieweeRouter)
 
