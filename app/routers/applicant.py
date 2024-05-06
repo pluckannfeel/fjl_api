@@ -8,8 +8,10 @@ import pandas as pd
 import requests
 import pytz
 
+
 from typing import List, Type, Optional, Union
 from datetime import datetime, timedelta, timezone, time
+from io import BytesIO
 
 # env
 from dotenv import load_dotenv
@@ -17,7 +19,7 @@ from dotenv import load_dotenv
 
 # fast api
 from fastapi import APIRouter, status, HTTPException, File, Form, UploadFile, Response
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 
 from tortoise.expressions import Q
 from tortoise.exceptions import DoesNotExist
@@ -38,10 +40,21 @@ from app.auth.authentication import hash_password, applicant_token_generator, ve
 # mail
 from app.helpers.mailer import Mailer, EmailSchema
 
+from fastapi import FastAPI, Form
+# from fastapi.responses import StreamingResponse
+# from reportlab.lib import colors
+# from reportlab.lib.pagesizes import A4
+# from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+# from reportlab.lib.units import inch, mm
+# from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, Frame, KeepInFrame
+
+
 s3_applicant_image_upload_folder = 'uploads/applicant/img/'
 s3_applicant_photos_upload_folder = 'uploads/applicant/photos/'
 s3_applicant_videos_upload_folder = 'uploads/applicant/videos/'
 s3_applicant_licenses_upload_folder = 'uploads/applicant/licenses/'
+
+fjl_cdn = 'https://d1l1wfoqw8757j.cloudfront.net/'
 
 router = APIRouter(
     prefix="/applicant",
@@ -50,10 +63,273 @@ router = APIRouter(
 )
 
 
-@router.get("")
+@router.get("/all")
 async def get_applicants():
-    applicants = await Applicant.all()
-    return applicants
+    # applicants = await Applicant.all()
+    applicants_list = await applicant_pydantic.from_queryset(Applicant.all())
+
+    # Define json fields only once outside the loop
+    json_fields = ['family', 'education', 'qualifications_licenses',
+                   'unique_questions', 'photos', 'links', 'work_experience', 'required_questions']
+
+    # Use list comprehension to process each applicant
+    modified_applicants = [await process_applicant(
+        applicant, json_fields) for applicant in applicants_list]
+
+    return modified_applicants
+
+
+async def process_applicant(applicant, json_fields):
+    applicant_dict = applicant.dict()  # Convert Pydantic model to dict
+
+    # Efficiently handle JSON parsing
+    for field in json_fields:
+        field_value = applicant_dict.get(field)
+        if field_value is not None:
+            applicant_dict[field] = json.loads(field_value)
+
+    # Modify 'required_questions' if applicable
+    if applicant_dict.get('required_questions') is not None:
+        modify_required_questions(applicant_dict)
+
+    # Replace the S3 bucket URL with the CDN URL for 'img_url'
+    img_url = applicant_dict.get('img_url')
+    if img_url:
+        applicant_dict['img_url'] = img_url.replace(
+            'https://fjl-bucket.s3.amazonaws.com/', fjl_cdn)
+
+    return applicant_dict
+
+
+# async def get_image_as_base64(url):
+#     async with httpx.AsyncClient() as client:
+#         response = await client.get(url)
+#         return base64.b64encode(response.content).decode('utf-8')
+
+
+def modify_required_questions(applicant_dict):
+    has_family = bool(applicant_dict.get('family'))
+
+    # Prepare the new question
+    new_question = {
+        "id": "4",
+        "question": "日本に友人、知人、親戚がいますか？ (Do you have friends, family/relatives living in Japan?)",
+        "answer": "yes" if has_family else "no"
+    }
+
+    required_questions = applicant_dict['required_questions']
+    if len(required_questions) >= 3:
+        required_questions.insert(3, new_question)
+
+        # Update the IDs of the subsequent questions efficiently
+        for i in range(4, len(required_questions)):
+            required_questions[i]['id'] = str(
+                int(required_questions[i]['id']) + 1)
+
+
+# def customize_styles():
+#     styles = getSampleStyleSheet()
+
+#     # styles.add(ParagraphStyle(name='Title', fontSize=24, leading=28, alignment=1, textColor=colors.navy, spaceAfter=6))
+#     styles.add(ParagraphStyle(name='Heading', fontSize=14,
+#                leading=18, spaceAfter=12, textColor=colors.darkblue))
+#     # styles.add(ParagraphStyle(name='BodyText', fontSize=12, leading=14, spaceBefore=6, spaceAfter=6))
+#     styles.add(ParagraphStyle(name='BodyTextIndented', leftIndent=10,
+#                fontSize=12, leading=14, spaceBefore=6, spaceAfter=6))
+#     styles.add(ParagraphStyle(name='TableHeader', fontSize=12, leading=14,
+#                textColor=colors.darkblue, bold=True, spaceBefore=12, spaceAfter=6))
+
+#     return styles
+
+
+# @router.post("/generate_applicant_pdf")
+# async def generate_applicant_pdf(data: str = Form(...)):
+#     applicant_data = json.loads(data)
+#     buffer = BytesIO()
+#     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=18*mm,
+#                             leftMargin=18*mm, topMargin=12*mm, bottomMargin=12*mm)
+#     styles = customize_styles()
+
+#     elements = []
+
+#     # Image and Name
+#     if applicant_data['img_url']:
+#         try:
+#             response = requests.get(applicant_data['img_url'])
+#             img_io = BytesIO(response.content)
+#             img = Image(img_io)
+#             img.drawHeight = 50*mm
+#             img.drawWidth = 50*mm
+#             img.hAlign = 'CENTER'
+#             elements.append(img)
+#             elements.append(Spacer(1, 12))
+#         except Exception as e:
+#             print(f"Failed to load image: {e}")
+
+#     elements.append(Paragraph(
+#         f"{applicant_data['first_name']} {applicant_data['last_name']}", styles['Title']))
+#     contact_info = f"Email: {applicant_data['email']} | Phone: {applicant_data['phone_number']}"
+#     elements.append(Paragraph(contact_info, styles['BodyText']))
+
+#     # Education
+#     # elements.append(Paragraph("Education", styles['Heading']))
+#     # if 'education' in applicant_data:
+#     #     for edu in applicant_data['education']:
+#     #         elements.append(Paragraph(
+#     #             f"{edu['school_name']} ({edu['from']} - {edu['to']})", styles['BodyTextIndented']))
+
+#     # Education
+#     elements.append(Paragraph("Education", styles['Heading']))
+#     if 'education' in applicant_data:
+#         education_data = [['Date', 'School Name']]
+#         for edu in applicant_data['education']:
+#             # Formatting dates
+#             start_date = edu.get('from', '')
+#             end_date = edu.get('to', '')
+
+#             # Formatting school name
+#             school_name = edu.get('school_name', '')
+
+#             # Formatting major
+#             major = edu.get('major', '')
+
+#             # Constructing the education line
+#             education_line = [
+#                 f"{start_date[:7]} - {end_date[:7]}", school_name]
+
+#             # Add major if available
+#             if major:
+#                 education_line.append(f"Major: {major}")
+
+#             education_data.append(education_line)
+
+#         # Define table style
+#         table_style = TableStyle([('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+#                                   ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+#                                   ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+#                                   ('SIZE', (0, 0), (-1, -1), 10),
+#                                   ('BOTTOMPADDING', (0, 0), (-1, -1), 6)])
+
+#         # Create the table
+#         table = Table(education_data)
+#         table.setStyle(table_style)
+
+#         elements.append(table)
+
+    # # # Work Experience
+    # # elements.append(Paragraph("Work Experience", styles['Heading']))
+    # # if 'work_experience' in applicant_data:
+    # #     for exp in applicant_data['work_experience']:
+    # #         elements.append(Paragraph(
+    # #             f"{exp['employer_name']} - {exp['position']} ({exp['from']} - {exp['to']})", styles['BodyTextIndented']))
+
+    # # Define fixed column widths
+    # # Divide page width into 8 equal parts for 4 columns
+    # col_widths = [doc.width / 8] * 4
+
+    # # Work Experience
+    # elements.append(Paragraph("Work Experience", styles['Heading']))
+    # if 'work_experience' in applicant_data:
+    #     work_exp_data = [['Date', 'Employer', 'Position', 'Responsibilities']]
+    #     for exp in applicant_data['work_experience']:
+    #         # Formatting dates
+    #         start_date = exp.get('from', '')[:7]
+    #         end_date = exp.get('to', '')[:7]
+
+    #         # Formatting employer name and position
+    #         employer_name = exp.get('employer_name', '')
+    #         position = exp.get('position', '')
+
+    #         # Formatting responsibilities
+    #         responsibilities = exp.get('responsibilities', '')
+
+    #         # Constructing the work experience line
+    #         work_exp_line = [f"{start_date} - {end_date}",
+    #                          employer_name, position, responsibilities]
+
+    #         work_exp_data.append(work_exp_line)
+
+    #     # Define table style
+    #     table_style = TableStyle([('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+    #                               ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    #                               ('SIZE', (0, 0), (-1, -1), 10),
+    #                               ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    #                               # Color header text
+    #                               ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
+    #                               # Header background color
+    #                               ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+    #                               # Row background color
+    #                               ('BACKGROUND', (0, 1),
+    #                                (-1, -1), colors.lightgrey),
+    #                               ('BOX', (0, 0), (-1, -1), 1, colors.black)])  # Add border around the table
+
+    #     # Create the table
+    #     table = Table(work_exp_data, colWidths=col_widths)
+    #     table.setStyle(table_style)
+
+    #     elements.append(table)
+
+    # # Qualifications and Licenses
+    # elements.append(
+    #     Paragraph("Qualifications and Licenses", styles['Heading']))
+    # if 'qualifications_licenses' in applicant_data:
+    #     for qual in applicant_data['qualifications_licenses']:
+    #         elements.append(
+    #             Paragraph(f"{qual}", styles['BodyTextIndented']))
+
+    # # Unique Questions
+    # elements.append(Paragraph("Unique Questions", styles['Heading']))
+    # question_table = []
+    # for question in applicant_data.get('unique_questions', []):
+    #     question_table.append([question['question'], question['answer']])
+    # if question_table:
+    #     t = Table(question_table)
+    #     t.setStyle(TableStyle([('INNERGRID', (0, 0), (-1, -1), 0.25,
+    #                colors.black), ('BOX', (0, 0), (-1, -1), 0.25, colors.black)]))
+    #     elements.append(t)
+
+    # # Required Questions
+    # if applicant_data['required_questions'] is not None:
+    #     elements.append(Paragraph("Required Questions", styles['Heading']))
+    #     required_table = []
+    #     for question in applicant_data.get('required_questions', []):
+    #         required_table.append([question['question'], question['answer']])
+    #     if required_table:
+    #         t = Table(required_table)
+    #         t.setStyle(TableStyle([('INNERGRID', (0, 0), (-1, -1), 0.25,
+    #                                 colors.black), ('BOX', (0, 0), (-1, -1), 0.25, colors.black)]))
+    #         elements.append(t)
+
+    # # Additional Personal Statements
+    # elements.append(Paragraph("Self Introduction", styles['Heading']))
+    # elements.append(
+    #     Paragraph(applicant_data['self_introduction'], styles['BodyText']))
+
+    # elements.append(Paragraph("Reason for Application", styles['Heading']))
+    # elements.append(
+    #     Paragraph(applicant_data['reason_for_application'], styles['BodyText']))
+
+    # elements.append(Paragraph("Past Experience", styles['Heading']))
+    # elements.append(
+    #     Paragraph(applicant_data['past_experience'], styles['BodyText']))
+
+    # # Build PDF
+    # doc.build(elements)
+    # buffer.seek(0)
+    # return StreamingResponse(buffer, media_type="application/pdf")
+
+
+# Add Image
+    # if applicant_data['img_url']:
+    #     try:
+    #         response = requests.get(applicant_data['img_url'])
+    #         response.raise_for_status()
+    #         img_io = BytesIO(response.content)
+    #         img = Image(img_io, 2*inch, 2*inch)
+    #         img.hAlign = 'CENTER'
+    #         elements.append(img)
+    #     except requests.RequestException as e:
+    #         print(f"Failed to load image: {e}")
 
 
 # @router.get("/{applicant_id}")
@@ -343,6 +619,36 @@ async def create_applicant(
     # Here, you would typically save the applicant data to your database
     # For now, let's just return a simple confirmation
     # return {"msg": "Applicant created successfully", "applicant": applicant}
+
+
+@router.put("/admin_edit_applicant")
+async def admin_edit_applicant(data: str = Form(...)):
+    applicant_info = json.loads(data)
+
+    # print(applicant_info)
+
+    # Fetch the applicant from the database using the ID
+
+    try:
+        applicant = await Applicant.get(id=applicant_info['id'])
+    except DoesNotExist:
+        raise HTTPException(
+            status_code=404, detail="Applicant not found.")
+
+    # Make a copy of applicant_info, remove the id and Update the applicant
+    data_copy = applicant_info.copy()
+
+    # pop id
+    data_copy.pop('id')
+
+    # Update the applicant
+    updated = await Applicant.filter(id=applicant_info['id']).update(**data_copy)
+
+    if not updated:
+        raise HTTPException(
+            status_code=500, detail="There was an error updating the applicant.")
+
+    return {"msg": "Applicant updated successfully."}
 
 
 @router.put("/update_applicant")

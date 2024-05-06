@@ -44,9 +44,26 @@ class Applicant(Model):
     links = fields.TextField(null=True)
     unique_questions = fields.TextField(null=True)
     required_questions = fields.TextField(null=True)
+    recruiter = fields.CharField(max_length=255, null=True)
+    organization = fields.CharField(max_length=255, null=True)
+    visa = fields.CharField(max_length=255, null=True)
+    interview_date = fields.DateField(null=True)
+    result = fields.CharField(max_length=255, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
 
 applicant_pydantic = pydantic_model_creator(
     Applicant, name="Applicant",
+    exclude=(
+        "password_hash",
+        "links",
+        # "unique_questions", "required_questions", "photos",
+        # "future_career_plan", "past_experience", "reason_for_application", "self_introduction",
+        # "english", "japanese", "nat", "jft", "jlpt", "qualifications_licenses", "work_experience", "family", "education",
+        # "computer_skills", "other_skills", "current_address", "occupation", "nationality"
+    )
 )
+
+# admin_applicant_list_pydantic = pydantic_model_creator(
+#     Applicant, name="Applicant", include=("id", "first_name", "last_name", "email", "phone_number", "img_url", "age", "gender", "birth_place", "marital_status", "recruiter", "organization", "visa", "interview_date",  "created_at")
+# )
