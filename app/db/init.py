@@ -20,6 +20,7 @@ def initialize_db(app):
                 'app.models.organization',
                 'app.models.applicant',
                 'app.models.interviewee',
+                'app.models.company',
             ]
         },
         generate_schemas=True,
