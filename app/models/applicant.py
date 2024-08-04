@@ -49,6 +49,17 @@ class Applicant(Model):
     visa = fields.CharField(max_length=255, null=True)
     interview_date = fields.DateField(null=True)
     result = fields.CharField(max_length=255, null=True)
+    # certain fields that translated to ja (newly added may 9)
+    ja_first_name = fields.CharField(max_length=100, null=True)
+    ja_last_name = fields.CharField(max_length=100, null=True)
+    ja_middle_name = fields.CharField(max_length=100, null=True)
+    ja_other_skills = fields.TextField(null=True)
+    ja_self_introduction = fields.TextField(null=True)
+    ja_reason_for_application = fields.TextField(null=True)
+    ja_past_experience = fields.TextField(null=True)
+    ja_future_career_plan = fields.TextField(null=True)
+    ja_unique_questions = fields.JSONField(null=True)
+    is_translated = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
 
 

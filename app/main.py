@@ -3,6 +3,9 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, Union
+from deepl import Translator as DeeplTranslator
+from dotenv import load_dotenv
+import os
 
 # database
 from app.db.init import initialize_db
@@ -12,6 +15,7 @@ from mangum import Mangum
 from app.routers.users import router as userRouter
 from app.routers.applicant import router as applicantRouter
 from app.routers.interviewees import router as intervieweeRouter
+from app.routers.company import router as companyRouter
 
 # mailing
 from app.helpers.mailer import Mailer, EmailSchema
@@ -25,6 +29,9 @@ oauth_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 initialize_db(app)
+load_dotenv()
+
+deepl_api = os.getenv("DEEPL_API_KEY")
 
 origins = [
     '*',
@@ -47,6 +54,7 @@ app.add_middleware(
 app.include_router(userRouter)
 app.include_router(applicantRouter)
 app.include_router(intervieweeRouter)
+app.include_router(companyRouter)
 
 
 @app.get("/")
@@ -111,6 +119,19 @@ async def send_mail(recipient_email: str, subject: str, body: str):
         await mailer.send_email(details)
 
         return {"message": "email has been sent"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/deepl_translate")
+async def translate(text: str, target_lang: str = "JA"):
+    # deepl setup
+    translator = DeeplTranslator(deepl_api)
+
+    try:
+        translation = translator.translate_text(text, target_lang=target_lang)
+        print(translation.text)
+        return {"translation": translation.text}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
