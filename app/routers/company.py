@@ -10,7 +10,8 @@ from app.helpers.s3_file_upload import generate_s3_url, upload_file_to_s3
 from fastapi import APIRouter, status, HTTPException, File, Form, UploadFile, Response
 from fastapi.responses import JSONResponse, FileResponse
 
-from app.models.company import Company, company_pydantic, company_pydantic_in
+from app.models.company import Company, company_pydantic, company_pydantic_in, company_selection_pydantic
+from app.models.agency import Agency, agency_pydantic
 from app.models.user import User
 
 from tempfile import NamedTemporaryFile
@@ -29,6 +30,13 @@ async def get_companies():
 
     # make sure order by recent creation with created_at
     return await company_pydantic.from_queryset(Company.all().order_by('-created_at'))
+
+# temporarily, lets add a agency list here for now
+@router.get("/agencies")
+async def get_agencies():
+    agencies = await agency_pydantic.from_queryset(Agency.all().order_by('-created_at'))
+
+    return agencies
 
 
 @router.post("/add")
@@ -69,3 +77,12 @@ async def delete_company(company_ids : List[str] = Form(...)):
 
     return {"deleted_companies": company_ids}
 
+@router.get("/company_select")
+async def get_company_selection():
+    companies = await Company.all()
+
+    companies_list = [await company_selection_pydantic.from_tortoise_orm(company) for company in companies]
+
+    sorted_companies = sorted(companies_list, key=lambda x: x.name_en)
+
+    return sorted_companies
