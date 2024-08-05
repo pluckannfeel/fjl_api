@@ -21,6 +21,7 @@ def initialize_db(app):
                 'app.models.applicant',
                 'app.models.interviewee',
                 'app.models.company',
+                'app.models.agency'
             ]
         },
         generate_schemas=True,
