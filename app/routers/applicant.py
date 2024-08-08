@@ -7,7 +7,7 @@ import calendar
 import pandas as pd
 import requests
 import pytz
-
+import logging
 
 from typing import List, Type, Optional, Union
 from datetime import datetime, timedelta, timezone, time
@@ -62,6 +62,11 @@ router = APIRouter(
     tags=["Applicant"],
     responses={404: {"some_description": "Not found"}}
 )
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 
 @router.get("/all")
@@ -217,7 +222,7 @@ async def login_applicant(login_info: CreateApplicantToken) -> dict:
 @router.post("/create_applicant")
 async def create_applicant(
         applicant_json: str = Form(...),
-        display_photo: UploadFile = File(...),
+        # display_photo: UploadFile = File(...),
         licenses: List[UploadFile] = File([]),
         # licenses: Optional[List[UploadFile]] = None,
         photos: List[UploadFile] = File([])):
@@ -225,22 +230,29 @@ async def create_applicant(
     try:
         # Parse the JSON string back into a dictionary
         applicant_data = json.loads(applicant_json)
-        print("Loaded JSON data (applicant_data)", )
+        logger.info("Loaded JSON data (applicant_data)")
     except json.JSONDecodeError as e:
+        logger.error(f"JSONDecodeError: {e}")
         raise HTTPException(
             status_code=400, detail="Incorrect JSON format in applicant data.")
+
+    # check email if already exists, if its throw error
+    if await Applicant.filter(email=applicant_data['email']).exists():
+        logger.warning("Email already exists.")
+        raise HTTPException(
+            status_code=400, detail="Email already exists.")
 
     # Construct the Applicant instance manually
     applicant = ApplicantSchema(
         applicant_json=applicant_data,
-        display_photo=display_photo,
+        # display_photo=display_photo,
         licenses=licenses,
         photos=photos
     )
 
     details = applicant.applicant_json
+    logger.info("Instanced ApplicantSchema (applicant) called details")
 
-    print("Instanced ApplicantSchema (applicant) called details")
 
     # extract the password from the details details["password"]
     # then hash the password as password_hash
@@ -252,56 +264,56 @@ async def create_applicant(
     now = datetime.now()
 
     # Upload the display photo to S3
-    if applicant.display_photo is not None:
-        first_name = str(details.get('first_name', 'unknown')).lower()
-        last_name = str(details.get('last_name', 'unknown')).lower()
+    # if applicant.display_photo is not None:
+    #     first_name = str(details.get('first_name', 'unknown')).lower()
+    #     last_name = str(details.get('last_name', 'unknown')).lower()
 
-        # get the file type
-        file_type = applicant.display_photo.filename.split(
-            '.')[-1] if applicant.display_photo.filename else 'jpg'
+    #     # get the file type
+    #     file_type = applicant.display_photo.filename.split(
+    #         '.')[-1] if applicant.display_photo.filename else 'jpg'
 
-        # image_name = f"{last_name}{first_name}_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
-        image_name = f"{last_name}_{first_name}_{now.strftime('%Y%m%d_%H%M%S')}.{file_type}"
+    #     # image_name = f"{last_name}{first_name}_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
+    #     image_name = f"{last_name}_{first_name}_{now.strftime('%Y%m%d_%H%M%S')}.{file_type}"
 
-        # upload
-        upload_file_to_s3(applicant.display_photo, image_name,
-                          s3_applicant_image_upload_folder)
+    #     # upload
+    #     upload_file_to_s3(applicant.display_photo, image_name,
+    #                       s3_applicant_image_upload_folder)
 
-        s3_img_path = s3_applicant_image_upload_folder + image_name
+    #     s3_img_path = s3_applicant_image_upload_folder + image_name
 
-        s3_read_url = generate_s3_url(s3_img_path, 'read')
+    #     s3_read_url = generate_s3_url(s3_img_path, 'read')
 
-        # append to details
-        details['img_url'] = s3_read_url
-        print("Successfully uploaded display photo to s3")
+    #     # append to details
+    #     details['img_url'] = s3_read_url
+    #     print("Successfully uploaded display photo to s3")
 
     if details['work_experience'] is not None:
         details['work_experience'] = json.dumps(
             details['work_experience'])
 
-        print("Successfully stringified work experience to json")
+        logger.info("Successfully stringified work experience to JSON")
 
     if details['education'] is not None:
         details['education'] = json.dumps(details['education'])
 
-        print("Successfully stringified education to json")
+        logger.info("Successfully stringified education to JSON")
 
     if details['family'] is not None:
         details['family'] = json.dumps(details['family'])
 
-        print("Successfully stringified family to json")
+        logger.info("Successfully stringified family to JSON")
 
     if details['unique_questions'] is not None:
         details['unique_questions'] = json.dumps(
             details['unique_questions'])
 
-        print("Successfully stringified unique questions to json")
+        logger.info("Successfully stringified unique questions to JSON")
 
     if details['required_questions'] is not None:
         details['required_questions'] = json.dumps(
             details['required_questions'])
 
-        print("Successfully stringified required questions to json")
+        logger.info("Successfully stringified required questions to JSON")
 
     # if details['links'] is not None:
     #     details['links'] = json.dumps(details['links'])
@@ -325,12 +337,13 @@ async def create_applicant(
 
             details['qualifications_licenses'][applicant.licenses.index(
                 file)]['file'] = s3_read_url
+            
 
         # dump the details to json
         details['qualifications_licenses'] = json.dumps(
             details['qualifications_licenses'])
 
-        print("Successfully uploaded licenses to s3")
+        logger.info("Successfully uploaded licenses to S3")
 
     # photos
     # if applicant.photos is not None:
@@ -382,13 +395,14 @@ async def create_applicant(
         # Dump the photo URLs to JSON
         details['photos'] = json.dumps(details['photos'])
 
-        print("Successfully uploaded photos to s3")
+        logger.info("Successfully uploaded photos to S3")
 
     # Create the applicant instance
     applicant = await Applicant.create(**details)
 
     new_applicant = await applicant_pydantic.from_tortoise_orm(applicant)
 
+    logger.info("Applicant created successfully")
     return new_applicant
 
     # Here, you would typically save the applicant data to your database

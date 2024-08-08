@@ -48,6 +48,8 @@ fastapi-mail = "*"
 pyjwt = "==2.4.0"
 deepl = "*"
 bcrypt = "==4.0.1"
+fillpdf = "*"
+python-docx = "*"
 
 [dev-packages]
 

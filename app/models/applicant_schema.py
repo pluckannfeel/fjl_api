@@ -86,7 +86,7 @@ class ApplicantSchema(BaseModel):
     # display_photo: UploadFile = File(None)
     # licenses: List[UploadFile] = []
     # photos: List[UploadFile] = []
-    display_photo: Optional[UploadFile] = None
+    # display_photo: Optional[UploadFile] = None
     licenses: List[Optional[UploadFile]] = []
     photos: List[Optional[UploadFile]] = []
 
