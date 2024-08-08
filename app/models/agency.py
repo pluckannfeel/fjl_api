@@ -20,3 +20,7 @@ class Agency(Model):
 agency_pydantic = pydantic_model_creator(
     Agency, name="Agency", 
 )
+
+agency_selection_pydantic = pydantic_model_creator(
+    Agency, name="AgencySelect", exclude=('address', 'phone', 'email', 'website', 'rep_name', 'rep_position', 'rep_phone', 'rep_email')
+)

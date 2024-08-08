@@ -43,5 +43,5 @@ company_pydantic_in = pydantic_model_creator(
     Company, name="CompanyIn", exclude_readonly=True)
 
 # exclude all except id name en and ja, phone, email, website and created at
-company_selection_pydantic = pydantic_model_creator(Company, name="CompanySelect", exclude=('prefecture_en', 'prefecture_ja', 'municipality_town_en', 'municipality_town_ja', 'building_en', 'building_ja', 'postal_code', 'rep_name_en', 'rep_name_ja', 'rep_name_ja_kana',
+company_selection_pydantic = pydantic_model_creator(Company, name="CompanySelect", exclude=('phone', 'email', 'website', 'prefecture_en', 'prefecture_ja', 'municipality_town_en', 'municipality_town_ja', 'building_en', 'building_ja', 'postal_code', 'rep_name_en', 'rep_name_ja', 'rep_name_ja_kana',
                                                     'rep_position_en', 'rep_position_ja', 'rep_phone', 'rep_email', 'secondary_rep_name_en', 'secondary_rep_name_ja', 'secondary_rep_name_ja_kana', 'secondary_rep_position_en', 'secondary_rep_position_ja', 'secondary_rep_phone', 'secondary_rep_email', 'address_ja_reading'))
