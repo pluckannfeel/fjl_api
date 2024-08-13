@@ -5,7 +5,7 @@ import pandas as pd
 
 from typing import List, Type
 from app.helpers.s3_file_upload import generate_s3_url, upload_file_to_s3
-from app.helpers.generate_docs import fill_application_form, fill_manpower_request_form, fill_employment_contract, fill_recruitment_agreement
+from app.helpers.generate_docs import fill_application_form, fill_manpower_request_form, fill_employment_contract, fill_recruitment_agreement,generate_default_documents
 
 # fast api
 from fastapi import APIRouter, status, HTTPException, File, Form, UploadFile, Response
@@ -108,72 +108,43 @@ async def get_agency_selection():
 
 @router.post("/generate_document")
 async def generate_document(details: str = Form(...)):
-    # async def generate_document(d):
     data = json.loads(details)
 
-    # # check if details has None values, if there is raise an error
-    if any(value is None for value in data.values()):
-        raise HTTPException(status_code=400, detail="Invalid details")
+    # Replace None values with empty strings
+    for key, value in data.items():
+        if value is None:
+            data[key] = ""
 
-    company_id = data['selected_company']
-    agency_id = data['selected_agency']
+    # Generate default documents for specific document types
+    if data['document_type'] in ['aqium_license_copy', 'aqium_representative_passport_copy']:
+        return generate_default_documents(data['document_type'])
+
+    # Fetch company and agency for other document types
+    company_id = data.get('selected_company')
+    agency_id = data.get('selected_agency')
 
     company = await Company.get(id=company_id)
     agency = await Agency.get(id=agency_id)
 
-    # check if company and agency is not found
     if not company or not agency:
-        raise HTTPException(
-            status_code=404, detail="Company or Agency not found")
+        raise HTTPException(status_code=404, detail="Company or Agency not found")
 
-    if (data['document_type'] == 'application_form'):
-        generated_document = fill_application_form(company, agency, data)
-
-        return generated_document
-    elif (data['document_type'] == 'manpower_request'):
-        match data['visa_type']:
-            case 'psw':
-                data['visa_type'] = 'Engineer / Specialist in Humanities / International Services'
-            case 'titp':
-                data['visa_type'] = 'Technical Intern Training Program'
-            case 'ssw':
-                data['visa_type'] = 'Specified Skilled Worker'
-            case 'student':
-                data['visa_type'] = 'Student'
-            # case default:
-            #     return ''
-
-        generated_document = fill_manpower_request_form(company, agency, data)
-
-        return generated_document
-    elif (data['document_type'] == 'employment_contract'):
-        generated_document = fill_employment_contract(company, agency, data)
-
-        return generated_document
-    elif (data['document_type'] == 'recruitment_agreement'):
-        generated_document = fill_recruitment_agreement(company, agency, data)
-
-        return generated_document
+    # Handle different document types
+    if data['document_type'] == 'application_form':
+        return fill_application_form(company, agency, data)
+    elif data['document_type'] == 'manpower_request':
+        visa_mapping = {
+            'psw': 'Engineer / Specialist in Humanities / International Services',
+            'titp': 'Technical Intern Training Program',
+            'ssw': 'Specified Skilled Worker',
+            'student': 'Student'
+        }
+        data['visa_type'] = visa_mapping.get(data['visa_type'], data['visa_type'])
+        return fill_manpower_request_form(company, agency, data)
+    elif data['document_type'] == 'employment_contract':
+        return fill_employment_contract(company, agency, data)
+    elif data['document_type'] == 'recruitment_agreement':
+        return fill_recruitment_agreement(company, agency, data)
     else:
-        # throw exception if document type is not found
         raise HTTPException(status_code=404, detail="Document type not found")
 
-    # generated_application_form = fill_application_form([], [], {})
-    # generated_manpower_request_form = fill_manpower_request_form([], [], {
-    #     'jobDetails': [
-    #         {'id': 0, 'title': "Software Engineer",
-    #          'no_of_workers': 2, 'basic_salary': "JPY 250000"},
-    #         {'id': 1, 'title': "Project Manager",
-    #          'no_of_workers': 1, 'basic_salary': "JPY 350000"}
-    #     ],
-    #     # add total workers dynamically
-    #     'totalWorkers': 3
-    # })
-    # generated_employment_contract = fill_employment_contract([], [], {})
-
-    # array of generated documents
-    # documents = [generated_application_form, generated_manpower_request_form, generated_employment_contract]
-
-    # return documents
-
-    # generate document
