@@ -50,6 +50,9 @@ deepl = "*"
 bcrypt = "==4.0.1"
 fillpdf = "*"
 python-docx = "*"
+lxml = "*"
+openpyxl = "*"
+xlwings = "*"
 
 [dev-packages]
 
