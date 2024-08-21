@@ -33,6 +33,12 @@ class Company(Model):
     secondary_rep_phone = fields.CharField(max_length=20, null=True)
     secondary_rep_email = fields.CharField(max_length=255, null=True)
     address_ja_reading = fields.TextField(null=True)
+    year_established = fields.CharField(max_length=255, null=True)
+    registered_industry_ja = fields.CharField(max_length=255, null=True)
+    registered_industry_en = fields.CharField(max_length=255, null=True)
+    regular_worker_count = fields.IntField(null=True)
+    parttime_worker_count = fields.IntField(null=True)
+    foreigner_worker_count = fields.IntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
@@ -44,5 +50,5 @@ company_pydantic_in = pydantic_model_creator(
     Company, name="CompanyIn", exclude_readonly=True)
 
 # exclude all except id name en and ja, phone, email, website and created at
-company_selection_pydantic = pydantic_model_creator(Company, name="CompanySelect", exclude=('phone', 'email', 'website', 'prefecture_en', 'prefecture_ja', 'municipality_town_en', 'municipality_town_ja', 'street_address_ja', 'building_en', 'building_ja', 'postal_code', 'rep_name_en', 'rep_name_ja', 'rep_name_ja_kana',
+company_selection_pydantic = pydantic_model_creator(Company, name="CompanySelect", exclude=('phone', 'email', 'website', 'prefecture_ja', 'municipality_town_ja', 'street_address_ja', 'building_ja', 'postal_code', 'rep_name_en', 'rep_name_ja', 'rep_name_ja_kana',
                                                     'rep_position_en', 'rep_position_ja', 'rep_phone', 'rep_email', 'secondary_rep_name_en', 'secondary_rep_name_ja', 'secondary_rep_name_ja_kana', 'secondary_rep_position_en', 'secondary_rep_position_ja', 'secondary_rep_phone', 'secondary_rep_email', 'address_ja_reading'))
